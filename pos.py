@@ -1,7 +1,6 @@
 from __future__ import division
 import sys
 import os
-import pandas as pd
 import subprocess
 from pydub import AudioSegment
 from collections import defaultdict
@@ -9,8 +8,8 @@ import numpy as np
 
 
 sp_globPath = "/home/sameer/Downloads/sppas-1.8.6/sppas/src"
-bin_path = "/home/sameer/Downloads/sppas-1.8.6/sppas/bin"
 greg_path = "/home/sameer/Downloads/Gregoire SPPAS Scripts/"
+
 
 sys.path.append(sp_globPath)
 sys.path.append(greg_path)
@@ -22,102 +21,127 @@ from annotationdata import Annotation
 from annotationdata import Label
 from annotationdata import TimePoint
 from annotationdata import TimeInterval
-#from annotationdata import Bool, Rel
 
 def alignmentFile(transcriptionFile, wavFile, sppaspath, sppasver):
-	fileName, fileExt = os.path.splitext(transcriptionFile)
-	wavFileName, wavExt = os.path.splitext(wavFile)
-	print subprocess.check_output(["python", os.path.join(greg_path, "sppas_afterClosedCap.py"), transcriptionFile, "-D", sppaspath, "-V", sppasver])
+	"""
+	Inputs 	:	xra transcription
+				wav audio
+				SPPAS path
+				SPPAS version
+	Output 	: 	eaf transcription aligned with audio
+	"""
 
-	elanFile = os.path.join(fileName + ".eaf")		#ELAN file which would be created by the above call
-	outFile = os.path.join(wavFileName + ".eaf")	#Name of the final ELAN file, which needs to be the same as that of the wav file. Also, this file renames ASR-Transcription and ASR-Revised so alignment happens on the Revised tier. outFile is the transcription file on which tokenization, phonetization and alignment will be performed.
+	fileName, fileExt = os.path.splitext(transcriptionFile)
+	print subprocess.check_output(["python", os.path.join(greg_path, "sppas_afterClosedCap.py"), transcriptionFile, "-D", sppaspath, "-V", sppasver])
+	elanFile = os.path.join(fileName + ".eaf")		#ELAN file which created by the above call
 
 	trs = annotationdata.aio.read(elanFile)
 
-	newtrs = Transcription()
+	#The SPPAS normalization routine works on the tier with the name 'transcription', or the first tier with the string 'trans' occuring in the name. 
+	#Hence, the tier named 'ASR-Revised', on which normalization and subsequent processing is desired, is renamed. So is the tier 'ASR-Transcription', which is to be left untouched.
 
 	for tier in trs:
 		if(tier.GetName() == "ASR-Transcription"):
 			tier.SetName("ASR-Orig")
 		if(tier.GetName() == "ASR-Revised"):
-			tier.SetName("transcription")
-		newtrs.Append(tier)
-
-
-	#annotationdata.aio.write(outFile, newtrs)
+			tier.SetName("transcription")			
 	annotationdata.aio.write(elanFile, trs)
 
+	wavFileName, wavExt = os.path.splitext(wavFile)
 	tokFileName = wavFileName +"-token.eaf"
 	phonFileName = wavFileName + "-phon.eaf"
 	alignFileName = wavFileName + "-palign.eaf"
 
-	print subprocess.check_output([os.path.join(sppaspath, "sppas", "bin", "tokenize.py"), '-r', os.path.join(sppaspath, "resources", "vocab", "fra.vocab"), "-i", elanFile, "-o", tokFileName])
+	#Subprocess call to create tokenized transcription file.
+	print subprocess.check_output([os.path.join(sppaspath, "sppas", "bin", "tokenize.py"), '-r', os.path.join(sppaspath, "resources", "vocab", "fra.vocab"), "-i", elanFile, "-o", tokFileName])		
+	
+	#Subprocess call to create phonetized transcription file.	
+	print subprocess.check_output([os.path.join(sppaspath, "sppas", "bin", "phonetize.py"), '-r', os.path.join(sppaspath, "resources", "dict", "fra.dict"), "-i", tokFileName, "-o", phonFileName])		
 
-	print subprocess.check_output([os.path.join(sppaspath, "sppas", "bin", "phonetize.py"), '-r', os.path.join(sppaspath, "resources", "dict", "fra.dict"), "-i", tokFileName, "-o", phonFileName])
-
-	print subprocess.check_output([os.path.join(sppaspath, "sppas", "bin", "alignment.py"), '-w', wavFile, "-i", phonFileName, "-I", tokFileName, "-o", alignFileName, "-r", os.path.join(sppaspath, "resources", "models", "models-fra")])
+	#Subprocess call to create transcription file aligned with audio.
+	print subprocess.check_output([os.path.join(sppaspath, "sppas", "bin", "alignment.py"), '-w', wavFile, "-i", phonFileName, "-I", tokFileName, "-o", alignFileName, "-r", os.path.join(sppaspath, "resources", "models", "models-fra")])		
 
 	return alignFileName
 
 def POStaggedFile(alignFileName):
+	#Inputs 	: eaf transcription aligned with audio
+	#Output 	: eaf transcription with a tier for part-of-speech labels
+
 	print subprocess.check_output(["/home/sameer/MarsaTag/MarsaTag-UI.sh", '-cli', '-pt', "TokensAlign", "-oral", "-P", "-p", "lpl-oral-no-punct", "-r", "elan-lite", "-w", "elan-lite", "-in-ext", ".eaf", "--out-ext", "-marsatag.eaf", alignFileName])
 
 	fileName, fileExt = os.path.splitext(alignFileName)
 	return os.path.join(fileName + "-marsatag.eaf")
 
 def PunctuatedFile(alignFileName):
+	#Inputs 	: eaf transcription aligned with audio
+	#Output 	: eaf transcription with a tier for part-of-speech and punctuation labels
+
 	print subprocess.check_output(["/home/sameer/MarsaTag/MarsaTag-UI.sh", '-cli', '-pt', "TokensAlign", "-oral", "-P", "-p", "lpl-oral-with-punct", "-r", "elan-lite", "-w", "elan-lite", "-in-ext", ".eaf", "--out-ext", "-marsatagPunc.eaf", alignFileName])
 
 	fileName, fileExt = os.path.splitext(alignFileName)
 	return os.path.join(fileName + "-marsatagPunc.eaf")		
 
 def avgSentenceLength(transcriptionFile, wavFile, splitUp, sppaspath, sppasver):
+	"""
+	Inputs 	:	xra transcription
+				wav audio 
+				phase-wise split of the interaction in the form of a list with 3 elements adding to 1
+				SPPAS path
+				SPPAS version
+	#Output :	3-element numpy array contining average sentence lengths of each phase
+	"""
+
 	segment = AudioSegment.from_file(wavFile)												
 	duration = segment.duration_seconds
+
+	#splitPoint_1 : time (in seconds) at which the first phase ends and the second begins
 	splitPoint_1 = (splitUp[0]) * duration
+
+	#splitPoint_2 : time (in seconds) at which the second phase ends and the third begins	
 	splitPoint_2 = (splitUp[0] + splitUp[1]) * duration
 
 	taggedTransFile = PunctuatedFile(alignmentFile(transcriptionFile, wavFile, sppaspath, sppasver))
+
 	trs = annotationdata.aio.read(taggedTransFile)
-	print taggedTransFile
 	tier = trs.Find("category", case_sensitive=False)
 
+	#sentenceLength : temporary variable counting the length of each sentence from one punctuation annotation to the next 
 	sentenceLength = 0
+
+	#sentenceCount : 3-element array storing the number of sentences in each phase 
 	sentenceCount = np.zeros(3)
-	totalSentenceLength = np.zeros(3)
-	i = 0
 
+	#numWords : 3-element array storing the number of words in each phase
+	numWords = np.zeros(3)
+	
 	for annotation in tier:
-		print annotation.GetLabel().GetValue()
 		if(annotation.GetLabel().GetValue() == "punctuation"):
-			print "yes"
-
 			if (annotation.GetLocation().GetBeginMidpoint() < splitPoint_1):
 				sentenceCount[0] += 1
-				totalSentenceLength[0] = totalSentenceLength[0] + sentenceLength
+				numWords[0] = numWords[0] + sentenceLength
 				sentenceLength = 0
 
 			elif (annotation.GetLocation().GetBeginMidpoint() < splitPoint_2):
 				sentenceCount[1] += 1
-				totalSentenceLength[1] = totalSentenceLength[1] + sentenceLength
+				numWords[1] = numWords[1] + sentenceLength
 				sentenceLength = 0
 			
 			else:
 				sentenceCount[2] += 1
-				totalSentenceLength[2] = totalSentenceLength[2] + sentenceLength
+				numWords[2] = numWords[2] + sentenceLength
 				sentenceLength = 0
 
 		else:
 			sentenceLength += 1
 
+	#avgLengths : 3-element array storing the average sentence length in each phase
 	avgLengths = np.zeros(3)
 
 	for i in range(3):
 		if(sentenceCount[i] == 0):
 			avgLengths[i] = 0
 		else:
-			avgLengths[i] = totalSentenceLength[i] / sentenceCount[i]
-		print avgLengths[i], "\n"
+			avgLengths[i] = numWords[i] / sentenceCount[i]
 	return avgLengths
 
 
@@ -163,11 +187,19 @@ def POSfreq(taggedTransFile, wavFile, splitUp):			#takes in the file generated b
 			else:
 				dictList[2][annotation.GetLabel().GetValue()] += 1
 
-	print dictList
 	return dictList
 
-def POSfeatures(transcriptionFile, wavFile, splitUp):
-	posFile = POStaggedFile(alignmentFile(transcriptionFile, wavFile, "/home/sameer/Downloads/sppas-1.8.6", "1.8.6"))
+def POSfeatures(transcriptionFile, wavFile, splitUp, sppaspath, sppasver):
+	"""
+	Inputs 	:	xra transcription
+				wav audio 
+				phase-wise split of the interaction in the form of a list with 3 elements adding to 1
+				SPPAS path
+				SPPAS version
+	#Output :	9x3 numpy array contining the frequency of each POS tag in each phase (with rows arranged in lexicographic order of tag name)
+	"""
+	
+	posFile = POStaggedFile(alignmentFile(transcriptionFile, wavFile, sppaspath, sppasver))
 	POSdict = POSfreq(posFile, wavFile, splitUp)
 	features = np.zeros((9, 3))
 
@@ -191,33 +223,4 @@ def POSfeatures(transcriptionFile, wavFile, splitUp):
 		if(POSdict[i]["verb"]):
 			features[8][i] = POSdict[i]["verb"]
 				
-	print features
 	return features	
-	
-
-#POSfeatures("/home/sameer/Projects/ACORFORMED/Data/corpus2017/N12F/Cave/data/asr-trans/N12F-03-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N12F/Cave/data/N12F-03-Cave-micro.wav", [0.17, 0.70, 0.15])
-#POStaggedFile(alignmentFile("/home/sameer/Projects/ACORFORMED/Data/corpus2017/E7A/Casque/data/test1/E7A-02-Casque-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E7A/Casque/data/E7A-02-Casque-micro.wav", "/home/sameer/Downloads/sppas-1.8.6", "1.8.6"))
-
-#dic = POSfreq("/home/sameer/Projects/ACORFORMED/Data/corpus2017/E7A/Casque/data/E7A-02-Casque-micro-palign-marsatag.eaf", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E7A/Casque/data/E7A-02-Casque-micro.wav", [15, 70, 15])
-#POSfeatures(dic)
-
-
-#print POSfeatures("/home/sameer/Projects/ACORFORMED/Data/corpus2017/E6F/Casque/data/asr-trans/E6F-02-Casque-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E6F/Casque/data/E6F-02-Casque-micro.wav", [0.15, 0.70, 0.15])
-
-#PunctuatedFile(alignmentFile("/home/sameer/Projects/ACORFORMED/Data/corpus2017/E7A/Casque/data/test1/E7A-02-Casque-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E7A/Casque/data/E7A-02-Casque-micro.wav", "/home/sameer/Downloads/sppas-1.8.6", "1.8.6"))
-"""
-		
-
-def main():
-	pass
-
-if __name__ == '__main__':
-	print subprocess.check_output(['/home/sameer/Downloads/sppas-1.8.6/sppas/bin/tokenize.py', '-r', "/home/sameer/Downloads/sppas-1.8.6/resources/vocab/fra.vocab", "-i", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E7A/Casque/data/test1/E7A-02-Casque-micro.E1-5.eaf", "-o", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E7A/Casque/data/test1/out.eaf"])
-
-	print subprocess.check_output(['/home/sameer/Downloads/sppas-1.8.6/sppas/bin/phonetize.py', '-r', "/home/sameer/Downloads/sppas-1.8.6/resources/dict/fra.dict", "-i", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E7A/Casque/data/test1/out.eaf", "-o", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E7A/Casque/data/test1/outPhon.eaf"])
-
-	print subprocess.check_output(['/home/sameer/Downloads/sppas-1.8.6/sppas/bin/alignment.py', '-w', "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E7A/Casque/data/E7A-02-Casque-micro.wav", "-i", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E7A/Casque/data/test1/outPhon.eaf", "-I", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E7A/Casque/data/test1/out.eaf", "-o", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E7A/Casque/data/test1/outAlign.eaf", "-r", "/home/sameer/Downloads/sppas-1.8.6/resources/models/models-fra"])
-
-	
-	main()
-"""

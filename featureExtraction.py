@@ -12,12 +12,15 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.utils import resample
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import cross_val_predict
-from sklearn import metrics
+from sklearn.metrics import confusion_matrix
+from sklearn.svm import SVC
+import matplotlib.pyplot as plt
+
+gregCorpusPath = "/home/sameer/Projects/ACORFORMED/Data/corpus2017"
+profBCorpusPath = "/home/sameer/Projects/ACORFORMED/Data/Data"
 
 def filePaths():
-    #the function collects 4 files for each sample from the two sources in the paths below. The 4 files are: unity coordinates, xra transcription, wav participant mic audio, and the mp4 extracted from the video.
-    gregCorpusPath = "/home/sameer/Projects/ACORFORMED/Data/corpus2017"
-    profBCorpusPath = "/home/sameer/Projects/ACORFORMED/Data/Data"
+    #The function collects 4 files for each sample from the two sources in the paths below. The 4 files are: unity coordinates, xra transcription, wav participant mic audio, and the mp4 extracted from the video. It returns an array of arrays. Each outer array corresponds to a sample (a participant-environment combination) and each inner array contains four paths, one corresponding to each of the mentioned files. The output of this function is used by the functions which compute entropies, IPU lengths, sentence lengths, and POS tags.
 
     outerArr = []
     for subdir in os.listdir(gregCorpusPath):
@@ -61,11 +64,11 @@ def computePOStags(pathsList, splitratios):
                     _, extWav = os.path.splitext(wavPath)
                     if(extWav == ".wav"):
                         #print path, wavPath
-                        POSfreqArr = POSfeatures(path, wavPath, splitratios)
+                        POSfreqArr = POSfeatures(path, wavPath, splitratios, "/home/sameer/Downloads/sppas-1.8.6", "1.8.6")
                         
                         envType = os.path.basename(os.path.normpath(os.path.dirname(os.path.dirname(os.path.dirname(path)))))
                         candidate = os.path.basename(os.path.normpath(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(path))))))
-                        dest = os.path.join("/home/sameer/Projects/ACORFORMED/Data/Data", candidate, envType, "Features", "pos.txt")
+                        dest = os.path.join(profBCorpusPath, candidate, envType, "Features", "pos.txt")
                         np.savetxt(dest, POSfreqArr)
 
 
@@ -84,7 +87,7 @@ def computeSentenceLengths(pathsList, splitratios):
                         sentenceLengthArray = avgSentenceLength(path, wavPath, splitratios, "/home/sameer/Downloads/sppas-1.8.6", "1.8.6")
                         envType = os.path.basename(os.path.normpath(os.path.dirname(os.path.dirname(os.path.dirname(path)))))
                         candidate = os.path.basename(os.path.normpath(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(path))))))
-                        dest = os.path.join("/home/sameer/Projects/ACORFORMED/Data/Data", candidate, envType, "Features", "slength.txt")
+                        dest = os.path.join(profBCorpusPath, candidate, envType, "Features", "slength.txt")
                         np.savetxt(dest, sentenceLengthArray)
             
 
@@ -98,11 +101,11 @@ def computeEntropies(pathsList, splitratios):
 
                 nvType = os.path.basename(os.path.normpath(os.path.dirname(os.path.dirname(os.path.dirname(path)))))
                 candidate = os.path.basename(os.path.normpath(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(path))))))
-                dest = os.path.join("/home/sameer/Projects/ACORFORMED/Data/Data", candidate, envType, "Features", "entropy.txt")
+                dest = os.path.join(profBCorpusPath, candidate, envType, "Features", "entropy.txt")
                 np.savetxt(dest, entArr)
 
 def computeIPUlengths(pathsList, splitratios):
-    crashlist = ["/home/sameer/Projects/ACORFORMED/Data/corpus2017/N21C/PC/data/N21C-03-PC-micro.wav"]#, "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E13A/Casque/data/E13A-02-Casque-micro.wav", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E13A/Cave/data/E13A-01-Cave-micro.wav"]
+    crashlist = ["/home/sameer/Projects/ACORFORMED/Data/corpus2017/N21C/PC/data/N21C-03-PC-micro.wav"]
     for paths in pathsList:
         for path in paths:
             fileName, fileext = os.path.splitext(path)
@@ -111,7 +114,7 @@ def computeIPUlengths(pathsList, splitratios):
     
                 envType = os.path.basename(os.path.normpath(os.path.dirname(os.path.dirname(path))))
                 candidate = os.path.basename(os.path.normpath(os.path.dirname(os.path.dirname(os.path.dirname(path)))))
-                dest = os.path.join("/home/sameer/Projects/ACORFORMED/Data/Data", candidate, envType, "Features", "ipu.txt")
+                dest = os.path.join(profBCorpusPath, candidate, envType, "Features", "ipu.txt")
                 np.savetxt(dest, entArr)
 
 def sum_nan_arrays(a, b):
@@ -130,7 +133,6 @@ def updateFrequencies(current, newArr):
 
 def removeNaN():
     #the following function replaces the nan values in the entropy matrices with average values
-    profBCorpusPath = "/home/sameer/Projects/ACORFORMED/Data/Data"
     sums = np.zeros((15, 3))            #this array eventually contains the sums of the values of the valid entries of each feature 
     currentFreq = np.zeros((15,3))      #supporting array to count the number of valid entries for each feature
     count = 0
@@ -179,15 +181,15 @@ def movePOSfiles(pathsList):
                 if os.path.isfile(posFile):
                     envType = os.path.basename(os.path.normpath(os.path.dirname(os.path.dirname(os.path.dirname(posFile)))))
                     candidate = os.path.basename(os.path.normpath(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(posFile))))))
-                    dest = os.path.join("/home/sameer/Projects/ACORFORMED/Data/Data", candidate, envType, "Features", "pos.txt")
+                    dest = os.path.join(profBCorpusPath, candidate, envType, "Features", "pos.txt")
                     shutil.copy(posFile, dest)
 
 def moveIPUfiles():
-    for dirs, subdirs, files in os.walk("/home/sameer/Projects/ACORFORMED/Data/corpus2017", topdown = True, onerror = None, followlinks = False):
+    for dirs, subdirs, files in os.walk(gregCorpusPath, topdown = True, onerror = None, followlinks = False):
         if(os.path.basename(os.path.normpath(dirs)) == "Features" and os.path.isfile(os.path.join(dirs, 'ipu.txt'))):
             envType = os.path.basename(os.path.normpath(os.path.dirname(os.path.dirname(os.path.join(dirs, 'ipu.txt')))))
             candidate = os.path.basename(os.path.normpath(os.path.dirname(os.path.dirname(os.path.dirname(os.path.join(dirs, 'ipu.txt'))))))
-            target = os.path.join("/home/sameer/Projects/ACORFORMED/Data/Data", candidate, envType,"Features")
+            target = os.path.join(profBCorpusPath, candidate, envType,"Features")
             if os.path.exists(target):
                 print "yes"
                 shutil.copy(os.path.join(dirs, "ipu.txt"), target)
@@ -203,6 +205,7 @@ def compressEntropy(entMat):
     return compressed
 
 def prepareMatrix():
+    #This function was used to traverse the corpus (specifically, the folders where the extracted features are stored) and prepare a feature matrix.
     featureMat = []
 
     candidateVec = []
@@ -214,8 +217,7 @@ def prepareMatrix():
     pScoreVec = []
     copClassVec = []
     copScoreVec = []
-    print "in prepare"
-    for dirs, subdirs, files in os.walk("/home/sameer/Projects/ACORFORMED/Data/Data", topdown = True, onerror = None, followlinks = False):
+    for dirs, subdirs, files in os.walk(profBCorpusPath, topdown = True, onerror = None, followlinks = False):
         if(os.path.basename(os.path.normpath(dirs)) == "Features"):
             entropyFile = os.path.join(dirs, "usableEntropies.txt")
             posFile = os.path.join(dirs, "pos.txt")
@@ -239,7 +241,7 @@ def prepareMatrix():
                     continue
                 
 
-                audioTarget = os.path.join("/home/sameer/Projects/ACORFORMED/Data/corpus2017", candidate, envType, "data")
+                audioTarget = os.path.join(gregCorpusPath, candidate, envType, "data")
 
                 for file in os.listdir(audioTarget):
                     #print file, "here"
@@ -334,6 +336,28 @@ def prepareMatrix():
     pdDump.to_excel(dumpPath, index = False)
     return mat
 
+def graphTupleList(l):
+    n = len(l)
+    valList = []
+    labelList = []
+    for i in range(n):
+        valList.append(l[i][0])
+        labelList.append(l[i][1])
+
+
+    fig, ax = plt.subplots()
+    index = np.arange(n)
+    bar_width = 0.5
+    rects1 = ax.bar(index, tuple(valList), bar_width)
+    plt.rc('font', size= 12)
+    ax.set_ylabel("Average decrease in node impurity")
+    
+    ax.set_xticks(index + bar_width / 2)
+    ax.set_xticklabels(tuple(labelList), rotation = 45, ha = "right")
+    plt.tight_layout()
+    plt.show()
+
+
 def randomForest(dataFile, modelTarget):
     samples = pd.read_excel(dataFile)
 
@@ -363,21 +387,8 @@ def randomForest(dataFile, modelTarget):
     balanced_set = pd.concat(upsampled)
 
     forest = RandomForestClassifier()
+    sv = SVC()
     names = ("Expert", "Head_Entropy_Start", "Head_Entropy_Mid", "Head_Entropy_End", "Avg_HandEntropy_Begin", "Avg_HandEntropy_Mid", "Avg_HandEntropy_End", "Avg_SentenceLength_Begin", "Avg_SentenceLength_Mid", "Avg_SentenceLength_End", "Avg_IPUlen_Begin", "Avg_IPUlen_Middle", "Avg_IPUlen_End", "Ratio1_Begin", "Ratio1_Mid","Ratio1_End", "Ratio2_Begin", "Ratio2_Mid", "Ratio2_End", "Duration")
-
-    """
-    Xorig = np.nan_to_num(balanced_set.as_matrix(names))
-    if(modelTarget == "presence"):
-        yorig = np.array(balanced_set["PresenceClass"].tolist())
-
-    else:
-        yorig = np.array(balanced_set["CopresenceClass"].tolist())
-
-    print modelTarget, "original"
-    print "f1_micro", np.mean(cross_val_score(forest, Xorig, yorig, cv=10, scoring = "f1_micro"))
-    print "precision", np.mean(cross_val_score(forest, Xorig, yorig, cv=10, scoring = "precision_micro"))
-    print "recall", np.mean(cross_val_score(forest, Xorig, yorig, cv=10, scoring = "recall_micro"))
-    """
     X = np.nan_to_num(balanced_set.as_matrix(names))
 
     if(modelTarget == "presence"):
@@ -387,23 +398,185 @@ def randomForest(dataFile, modelTarget):
         y = np.array(balanced_set["CopresenceClass"].tolist())
 
     #print X.shape
-    print modelTarget
-    print "f1_micro", np.mean(cross_val_score(forest, X, y, cv=10, scoring = "f1_micro"))
-    print "precision", np.mean(cross_val_score(forest, X, y, cv=10, scoring = "precision_micro"))
-    print "recall", np.mean(cross_val_score(forest, X, y, cv=10, scoring = "recall_micro"))
+    print modelTarget, "random forest"
+    print "f1_macro", np.mean(cross_val_score(forest, X, y, cv=10, scoring = "f1_macro"))
+    print "precision_macro", np.mean(cross_val_score(forest, X, y, cv=10, scoring = "precision_macro"))
+    print "recall_macro", np.mean(cross_val_score(forest, X, y, cv=10, scoring = "recall_macro"))
+
+    print "\n", modelTarget, "SVM"
+    print "f1_macro", np.mean(cross_val_score(sv, X, y, cv=10, scoring = "f1_macro"))
+    print "precision_macro", np.mean(cross_val_score(sv, X, y, cv=10, scoring = "precision_macro"))
+    print "recall_macro", np.mean(cross_val_score(sv, X, y, cv=10, scoring = "recall_macro"))
+
     #preds = cross_val_predict(forest, X, y, cv=10)
     #print metrics.accuracy_score(y, preds)
 
-    forest.fit(X, y)
-    print sorted(zip(map(lambda x: round(x, 4), forest.feature_importances_), names), reverse=True)
+    importanceMat = ([[0] * len(names)]) * 1000
+    for i in range(1000):
+        forest.fit(X, y)
+        importanceMat[i] = forest.feature_importances_
+
+    importanceArr = np.asarray(importanceMat)
+    stdVec= np.std(importanceArr, axis = 0)
+    importanceVec = np.sum(importanceArr, axis = 0)/1000
+
+
+    dumpPath = "/home/sameer/Projects/ACORFORMED/Data/stats.xlsx"
+    print "\n"
+    descIndices = np.argsort(importanceVec)
+    
+    featureStats = np.vstack((importanceVec[descIndices[::-1]], stdVec[descIndices[::-1]]))
+    pdDump = pd.DataFrame(featureStats)
+
+    pdDump.columns = np.asarray(names)[descIndices[::-1]]
+
+    print np.asarray(names)[descIndices[::-1]]
+    print importanceVec[descIndices[::-1]]
+    print stdVec[descIndices[::-1]]
+    pdDump.to_excel(dumpPath, index = False)
+    """
+    for i in range(len(names)):
+        print names[descIndices[i]], importanceVec[descIndices[i]], stdVec[descIndices[i]]
+    """
+
+
+    #graphTupleList (sorted(zip(map(lambda x: round(x, 4), forest.feature_importances_), names), reverse=True))
     
    #writer = pd.ExcelWriter('/home/sameer/Projects/ACORFORMED/Data/upsampled.xlsx')
     #balanced_set.to_excel(writer,'Sheet1')
     #writer.save()
 
-def main():
-    profBCorpusPath = "/home/sameer/Projects/ACORFORMED/Data/Data"
+def presenceModels(dataFile):
+    samples = pd.read_excel(dataFile)
 
+    samples_split = []
+    samples_split.append(samples[samples.PresenceClass == 1])
+    samples_split.append(samples[samples.PresenceClass == 2])
+    samples_split.append(samples[samples.PresenceClass == 3])
+
+    maxClassSize = max(samples_split[0].shape[0], samples_split[1].shape[0], samples_split[2].shape[0])
+
+    upsampled = []
+
+    for samples in samples_split:
+        if(samples.shape[0] == maxClassSize):
+            upsampled.append(samples)
+        else:
+            upsampled.append(resample(samples, replace=True, n_samples=maxClassSize, random_state=None))
+
+    balanced_set = pd.concat(upsampled)
+
+    forest = RandomForestClassifier()
+    sv = SVC()
+    names = ("Avg_HandEntropy_End", "Avg_SentenceLength_End", "Avg_SentenceLength_Mid", "Ratio2_End", "Ratio1_Begin", "Head_Entropy_End")
+    X = np.nan_to_num(balanced_set.as_matrix(names))
+
+    y = np.array(balanced_set["PresenceClass"].tolist())
+
+    print "random forest"
+    print "f1_macro", np.mean(cross_val_score(forest, X, y, cv=10, scoring = "f1_macro"))
+    print "precision_macro", np.mean(cross_val_score(forest, X, y, cv=10, scoring = "precision_macro"))
+    print "recall_macro", np.mean(cross_val_score(forest, X, y, cv=10, scoring = "recall_macro"))
+
+    print "\n", "SVM"
+    print "f1_macro", np.mean(cross_val_score(sv, X, y, cv=10, scoring = "f1_macro"))
+    print "precision_macro", np.mean(cross_val_score(sv, X, y, cv=10, scoring = "precision_macro"))
+    print "recall_macro", np.mean(cross_val_score(sv, X, y, cv=10, scoring = "recall_macro"))
+
+    #preds = cross_val_predict(forest, X, y, cv=10)
+    #print metrics.accuracy_score(y, preds)
+
+    importanceMat = ([[0] * len(names)]) * 1000
+    for i in range(1000):
+        forest.fit(X, y)
+        importanceMat[i] = forest.feature_importances_
+
+    importanceArr = np.asarray(importanceMat)
+    stdVec= np.std(importanceArr, axis = 0)
+    importanceVec = np.sum(importanceArr, axis = 0)/1000
+
+
+    dumpPath = "/home/sameer/Projects/ACORFORMED/Data/statsPres.xlsx"
+    print "\n"
+    descIndices = np.argsort(importanceVec)
+    
+    featureStats = np.vstack((importanceVec[descIndices[::-1]], stdVec[descIndices[::-1]]))
+    pdDump = pd.DataFrame(featureStats)
+
+    pdDump.columns = np.asarray(names)[descIndices[::-1]]
+
+    print np.asarray(names)[descIndices[::-1]]
+    print importanceVec[descIndices[::-1]]
+    print stdVec[descIndices[::-1]]
+    pdDump.to_excel(dumpPath, index = False)
+
+
+def copresenceModels(dataFile):
+    samples = pd.read_excel(dataFile)
+
+    samples_split = []
+    samples_split.append(samples[samples.CopresenceClass == 1])
+    samples_split.append(samples[samples.CopresenceClass == 2])
+    samples_split.append(samples[samples.CopresenceClass == 3])
+
+    maxClassSize = max(samples_split[0].shape[0], samples_split[1].shape[0], samples_split[2].shape[0])
+
+    upsampled = []
+
+    for samples in samples_split:
+        if(samples.shape[0] == maxClassSize):
+            upsampled.append(samples)
+        else:
+            upsampled.append(resample(samples, replace=True, n_samples=maxClassSize, random_state=None))
+
+    balanced_set = pd.concat(upsampled)
+
+    forest = RandomForestClassifier()
+    sv = SVC()
+    names = ("Duration", "Ratio2_Begin", "Avg_HandEntropy_Mid", "Avg_SentenceLength_Begin", "Head_Entropy_Mid", "Avg_IPUlen_End")
+    X = np.nan_to_num(balanced_set.as_matrix(names))
+
+    y = np.array(balanced_set["CopresenceClass"].tolist())
+
+    print "random forest"
+    print "f1_macro", np.mean(cross_val_score(forest, X, y, cv=10, scoring = "f1_macro"))
+    print "precision_macro", np.mean(cross_val_score(forest, X, y, cv=10, scoring = "precision_macro"))
+    print "recall_macro", np.mean(cross_val_score(forest, X, y, cv=10, scoring = "recall_macro"))
+
+    print "\n", "SVM"
+    print "f1_macro", np.mean(cross_val_score(sv, X, y, cv=10, scoring = "f1_macro"))
+    print "precision_macro", np.mean(cross_val_score(sv, X, y, cv=10, scoring = "precision_macro"))
+    print "recall_macro", np.mean(cross_val_score(sv, X, y, cv=10, scoring = "recall_macro"))
+
+    #preds = cross_val_predict(forest, X, y, cv=10)
+    #print metrics.accuracy_score(y, preds)
+
+    importanceMat = ([[0] * len(names)]) * 1000
+    for i in range(1000):
+        forest.fit(X, y)
+        importanceMat[i] = forest.feature_importances_
+
+    importanceArr = np.asarray(importanceMat)
+    stdVec= np.std(importanceArr, axis = 0)
+    importanceVec = np.sum(importanceArr, axis = 0)/1000
+
+
+    dumpPath = "/home/sameer/Projects/ACORFORMED/Data/statsPres.xlsx"
+    print "\n"
+    descIndices = np.argsort(importanceVec)
+    
+    featureStats = np.vstack((importanceVec[descIndices[::-1]], stdVec[descIndices[::-1]]))
+    pdDump = pd.DataFrame(featureStats)
+
+    pdDump.columns = np.asarray(names)[descIndices[::-1]]
+
+    print np.asarray(names)[descIndices[::-1]]
+    print importanceVec[descIndices[::-1]]
+    print stdVec[descIndices[::-1]]
+    pdDump.to_excel(dumpPath, index = False)
+
+
+def main():
     pathsList = filePaths()
     splitratios = [0.15, 0.70, 0.15]
     """
@@ -417,87 +590,10 @@ def main():
     #prepareMatrix()
     
     randomForest("/home/sameer/Projects/ACORFORMED/Data/mlMat.xlsx", "presence")
+    #presenceModels("/home/sameer/Projects/ACORFORMED/Data/mlMatP.xlsx")
     print "\n\n"
-    randomForest("/home/sameer/Projects/ACORFORMED/Data/mlMat.xlsx", "copresence")
-    
+    #randomForest("/home/sameer/Projects/ACORFORMED/Data/mlMat.xlsx", "copresence")
 
-
-    """
-    splitPt = int(0.8 * featureMat.shape[0])
-    print featureMat.shape
-    print classVec
-    rfc = RandomForestClassifier()
-    rfc.fit(featureMat[0 : splitPt], classVec[0 : splitPt])
-
-    print rfc.predict(featureMat[splitPt:])
-    print classVec[splitPt:] 
-
-    """
-    """
-    for paths in pathsList:
-        for path in paths:
-            _, fileext = os.path.splitext(path)
-            if(fileext == ".txt"):
-                videoEntropyMatrix(path, splitratios)
-    """
-    
-    """
-    crashlist = ["/home/sameer/Projects/ACORFORMED/Data/corpus2017/N1A/Casque/data/asr-trans/N1A-02-Casque-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N2B/PC/data/asr-trans/N2B-02-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E6F/Cave/data/asr-trans/E6F-03-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N15C/Casque/data/asr-trans/N15C-01-Casque-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N3C/Casque/data/asr-trans/N3C-01-Casque-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E2B/Cave/data/asr-trans/E2B-02-Cave-micro.E2B-latin1.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N6F/PC/data/asr-trans/N6F-05-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N6F/PC/data/asr-trans/N6F-01-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N6F/Casque/data/asr-trans/N6F-04-Casque-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N6F/Casque/data/asr-trans/N6F-02-Casque-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N21C/PC/data/asr-trans/N21C-03-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N22D/PC/data/asr-trans/N22D-02-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N22D/PC/data/asr-trans/N22D-02-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N22D/Cave/data/asr-trans/N22D-03-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N4D/Casque/data/asr-trans/N4D-01-Casque-micro.E1-5.xra"]
-
-
-    #N6 PC has two transcription files. Why? The one with "5" in the name crashed
-    #N6 Casque also has 2 files.  Infinte loop occurs 
-
-    throughList = ["/home/sameer/Projects/ACORFORMED/Data/corpus2017/N12F/PC/data/asr-trans/N12F-01-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N12F/Cave/data/asr-trans/N12F-03-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N12F/Casque/data/asr-trans/N12F-02-Casque-micro.E1-5.xra", 
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N1A/PC/data/asr-trans/N1A-03-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N1A/Cave/data/asr-trans/N1A-01-Cave-micro.E1-5.xra",
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N9C/PC/data/asr-trans/N9C-03-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N9C/Cave/data/asr-trans/N9C-02-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N9C/Casque/data/asr-trans/N9C-01-Casque-micro.E1-5.xra", 
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N2B/Cave/data/asr-trans/N2B-01-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N2B/Casque/data/asr-trans/N2B-03-Casque-micro.E1-5.xra", 
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N13A/PC/data/asr-trans/N13A-03-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N13A/Cave/data/asr-trans/N13A-01-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N13A/Casque/data/asr-trans/N13A-02-Casque-micro.E1-5.xra", 
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E6F/PC/data/asr-trans/E6F-01-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E6F/Casque/data/asr-trans/E6F-02-Casque-micro.E1-5.xra", 
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N10D/PC/data/asr-trans/N10D-02-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N10D/Cave/data/asr-trans/N10D-03-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N10D/Casque/data/asr-trans/N10D-01-Casque-micro.E1-5.xra", 
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N26D/PC/data/asr-trans/N26D-02-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N26D/Cave/data/asr-trans/N26D-03-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N26D/Casque/data/asr-trans/N26D-01-Casque-micro.E1-5.xra", 
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N15C/PC/data/asr-trans/N15C-03-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N15C/Cave/data/asr-trans/N15C-02-Cave-micro.E1-5.xra", 
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E3C/PC/data/asr-trans/E3C-03-PC-micro.E3C-latin1.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E3C/Cave/data/asr-trans/E3C-02-Cave-micro.E3C-latin1.xra", 
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E7A/PC/data/asr-trans/E7A-03-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E7A/Cave/data/asr-trans/E7A-01-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E7A/Casque/data/asr-trans/E7A-02-Casque-micro.E1-5.xra", 
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E2B/PC/data/asr-trans/E2B-03-PC-micro.E2B-latin1.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E2B/Casque/data/asr-trans/E2B-01-Casque-micro.E1A-latin1.xra"
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N18F/PC/data/asr-trans/N18F-01-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N18F/Cave/data/asr-trans/N18F-03-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N18F/Casque/data/asr-trans/N18F-02-Casque-micro.E1-5.xra", 
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E10D/PC/data/asr-trans/E10D-02-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E10D/Cave/data/asr-trans/E10D-03-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E10D/Casque/data/asr-trans/E10D-01-Casque-micro.E1-5.xra"
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E4D/PC/data/asr-trans/E4D-02-PC-micro.E4D-latin1.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E4D/Cave/data/asr-trans/E4D-03-Cave-micro.E4D-latin1.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E4D/Casque/data/asr-trans/E4D-01-Casque-micro.E1-3-latin1.xra",
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E5E/PC/data/asr-trans/E5E-01-PC-micro.E1-4-latin1.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E5E/Cave/data/asr-trans/E5E-02-Cave-micro.E5E-latin1.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E5E/Casque/data/asr-trans/E5E-03-Casque-micro.E5E-latin1.xra",
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E9C/PC/data/asr-trans/E9C-03-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E9C/Cave/data/asr-trans/E9C-02-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/E9C/Casque/data/asr-trans/E9C-01-Casque-micro.E1-5.xra",
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N14B/PC/data/asr-trans/N14B-02-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N14B/Cave/data/asr-trans/N14B-01-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N14B/Casque/data/asr-trans/N14B-03-Casque-micro.E1-5.xra",
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N12F/PC/data/asr-trans/N12F-01-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N12F/Cave/data/asr-trans/N12F-03-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N12F/Casque/data/asr-trans/N12F-02-Casque-micro.E1-5.xra",
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N21C/Cave/data/asr-trans/N21C-02-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N21C/Casque/data/asr-trans/N21C-01-Casque-micro.E1-5.xra",
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N7A/PC/data/asr-trans/N7A-03-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N7A/Cave/data/asr-trans/N7A-01-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N7A/Casque/data/asr-trans/N7A-02-Casque-micro.E1-5.xra",
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N19A/PC/data/asr-trans/N19A-03-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N19A/Cave/data/asr-trans/N19A-01-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N19A/Casque/data/asr-trans/N19A-02-Casque-micro.E1-5.xra",
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N20B/PC/data/asr-trans/N20B-02-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N20B/Cave/data/asr-trans/N20B-01-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N20B/Cave/data/asr-trans/N20B-03-Casque-micro.E1-5.xra",
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N23E/PC/data/asr-trans/N23E-01-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N23E/Cave/data/asr-trans/N23E-02-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N23E/Casque/data/asr-trans/N23E-03-Casque-micro.E1-5.xra",
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N24F/PC/data/asr-trans/N24F-01-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N24F/Cave/data/asr-trans/N24F-03-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N24F/Casque/data/asr-trans/N24F-02-Casque-micro.E1-5.xra",
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N22D/Casque/data/asr-trans/N22D-01-Casque-micro.E1-5.xra",
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N11E/PC/data/asr-trans/N11E-01-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N11E/Cave/data/asr-trans/N11E-02-Cave-micro.E1-5.xra",
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N17E/PC/data/asr-trans/N17E-01-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N17E/Cave/data/asr-trans/N17E-02-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N17E/Casque/data/asr-trans/N17E-03-Casque-micro.E1-5.xra",
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N16D/PC/data/asr-trans/N16D-02-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N16D/Cave/data/asr-trans/N16D-03-Cave-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N16D/Casque/data/asr-trans/N16D-01-Casque-micro.E1-5.xra"
-    "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N4D/PC/data/asr-trans/N4D-02-PC-micro.E1-5.xra", "/home/sameer/Projects/ACORFORMED/Data/corpus2017/N4D/Cave/data/asr-trans/N4D-03-Cave-micro.E1-5.xra"]
-
-    for paths in pathsList:
-        for path in paths:
-            fileName, fileext = os.path.splitext(path)
-            if(fileext == ".xra" and path not in crashlist and path not in throughList):
-                for wavPath in paths:
-                    _, extWav = os.path.splitext(wavPath)
-                    if(extWav == ".wav"):
-                        #print path, wavPath
-                        POSfreqArr = POSfeatures(path, wavPath, splitratios)
-                        #POSfreqArr = POSfreqArr.astype(int)
-                        np.savetxt(fileName + ".txt", POSfreqArr)
-    """
-    """
-    for dirs, subdirs, files in os.walk("/home/sameer/Projects/ACORFORMED/Data/corpus2017", topdown = True, onerror = None, followlinks = False):
-        for file in files:
-            name, exten = os.path.splitext(file)  
-            if(os.path.basename(os.path.normpath(dirs)) == 'asr-trans') and (exten == ".xra"):  
-                shutil.copy(os.path.join(dirs, file), "/home/sameer/Projects/ACORFORMED/Transcription Files 2")
-    """
 if(__name__ == "__main__"):
     main()
 
