@@ -88,7 +88,7 @@ def avgSentenceLength(transcriptionFile, wavFile, splitUp, sppaspath, sppasver):
 				phase-wise split of the interaction in the form of a list with 3 elements adding to 1
 				SPPAS path
 				SPPAS version
-	#Output :	3-element numpy array contining average sentence lengths of each phase
+	#Output :	3-element numpy array containing average sentence lengths of each phase
 	"""
 
 	segment = AudioSegment.from_file(wavFile)												
@@ -196,7 +196,7 @@ def POSfeatures(transcriptionFile, wavFile, splitUp, sppaspath, sppasver):
 				phase-wise split of the interaction in the form of a list with 3 elements adding to 1
 				SPPAS path
 				SPPAS version
-	#Output :	9x3 numpy array contining the frequency of each POS tag in each phase (with rows arranged in lexicographic order of tag name)
+	#Output :	9x3 numpy array containing the frequency of each POS tag in each phase (with rows arranged in lexicographic order of tag name)
 	"""
 	
 	posFile = POStaggedFile(alignmentFile(transcriptionFile, wavFile, sppaspath, sppasver))

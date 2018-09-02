@@ -231,8 +231,13 @@ def prepareMatrix():
                 candidate = os.path.basename(os.path.normpath(os.path.dirname(os.path.dirname(os.path.dirname(posFile)))))
                 candidateLevel = candidate[0]
                 
+                """
                 labels = pd.read_excel("/home/sameer/Projects/ACORFORMED/Data/presence.xlsx")
                 labelsCo = pd.read_excel("/home/sameer/Projects/ACORFORMED/Data/copresence.xlsx")
+                """
+                labels = pd.read_excel(os.path.join(profBCorpusPath, "presence.xlsx"))
+                labelsCo = pd.read_excel(os.path.join(profBCorpusPath, "copresence.xlsx"))
+                
 
                 if(extractClass(labels, candidate, envType)) is None:
                     continue
@@ -327,7 +332,8 @@ def prepareMatrix():
     mat =  np.hstack((featureMat, rat1Vec, rat2Vec, classes))
 
     pdDump = pd.DataFrame(mat)
-    dumpPath = "/home/sameer/Projects/ACORFORMED/Data/matrix.xlsx"
+    #dumpPath = "/home/sameer/Projects/ACORFORMED/Data/matrix.xlsx"
+    dumpPath = os.path.join(os.path.dirname(profBCorpusPath), "matrix.xlsx")
     pdDump.columns = ['Head_Entropy_Start', 'Head_Entropy_Mid', 'Head_Entropy_End', 'LeftWrist_Entropy_Start', 'LeftWrist_Entropy_Mid', 'LeftWrist_Entropy_End', 'RightWrist_Entropy_Start', 'RightWrist_Entropy_Mid', 'RightWrist_Entropy_End', 'LeftElbow_Entropy_Start', 'LeftElbow_Entropy_Mid', 'LeftElbow_Entropy_End', 'RightElbow_Entropy_Start', 'RightElbow_Entropy_Mid', 'RightElbow_Entropy_End', 'Freq_Adjective_Begin', 'Freq_Adjective_Mid', 'Freq_Adjective_End', 'Freq_Adverb_Begin', 'Freq_Adverb_Mid', 'Freq_Adverb_End','Freq_Auxiliary_Begin', 'Freq_Auxiliary_Mid', 'Freq_Auxiliary_End', 'Freq_Conjunction_Begin', 'Freq_Conjunction_Mid', 'Freq_Conjunction_End', 'Freq_Determiner_Begin', 'Freq_Determiner_Mid', 'Freq_Determiner_End', 'Freq_Noun_Begin', 'Freq_Noun_Mid', 'Freq_Noun_End', 'Freq_Preposition_Begin', 'Freq_Preposition_Mid', 'Freq_Preposition_End', 'Freq_Pronoun_Begin', 'Freq_Pronoun_Mid', 'Freq_Pronoun_End', 'Freq_Verb_Begin', 'Freq_Verb_Mid', 'Freq_Verb_End', 'Avg_SentenceLength_Begin', 'Avg_SentenceLength_Mid', 'Avg_SentenceLength_End', 'Avg_IPUlen_Begin', 'Avg_IPUlen_Middle', 'Avg_IPUlen_End', 'Ratio1_Begin', 'Ratio1_Mid', 'Ratio1_End', 'Ratio2_Begin', 'Ratio2_Mid', 'Ratio2_End', 'Duration', 'Presence Score', 'Presence Class', 'Co-presence Score', 'Co-presence Class']
 
     pdDump.insert(0, 'Candidate', candidateVec)
@@ -361,6 +367,10 @@ def graphTupleList(l):
 def randomForest(dataFile, modelTarget):
     samples = pd.read_excel(dataFile)
 
+    names = ("Expert", "Head_Entropy_Start", "Head_Entropy_Mid", "Head_Entropy_End", "Avg_HandEntropy_Begin", "Avg_HandEntropy_Mid", "Avg_HandEntropy_End", "Avg_SentenceLength_Begin", "Avg_SentenceLength_Mid", "Avg_SentenceLength_End", "Avg_IPUlen_Begin", "Avg_IPUlen_Middle", "Avg_IPUlen_End", "Ratio1_Begin", "Ratio1_Mid","Ratio1_End", "Ratio2_Begin", "Ratio2_Mid", "Ratio2_End", "Duration")
+
+    samples = samples[list(names)]
+
     samples_split = []
     if(modelTarget == "presence"):
         samples_split.append(samples[samples.PresenceClass == 1])
@@ -388,7 +398,7 @@ def randomForest(dataFile, modelTarget):
 
     forest = RandomForestClassifier()
     sv = SVC()
-    names = ("Expert", "Head_Entropy_Start", "Head_Entropy_Mid", "Head_Entropy_End", "Avg_HandEntropy_Begin", "Avg_HandEntropy_Mid", "Avg_HandEntropy_End", "Avg_SentenceLength_Begin", "Avg_SentenceLength_Mid", "Avg_SentenceLength_End", "Avg_IPUlen_Begin", "Avg_IPUlen_Middle", "Avg_IPUlen_End", "Ratio1_Begin", "Ratio1_Mid","Ratio1_End", "Ratio2_Begin", "Ratio2_Mid", "Ratio2_End", "Duration")
+    
     X = np.nan_to_num(balanced_set.as_matrix(names))
 
     if(modelTarget == "presence"):
@@ -421,7 +431,8 @@ def randomForest(dataFile, modelTarget):
     importanceVec = np.sum(importanceArr, axis = 0)/1000
 
 
-    dumpPath = "/home/sameer/Projects/ACORFORMED/Data/stats.xlsx"
+    #dumpPath = "/home/sameer/Projects/ACORFORMED/Data/stats.xlsx"
+    dumpPath = os.path.join(os.path.dirname(profBCorpusPath), "stats.xlsx")
     print "\n"
     descIndices = np.argsort(importanceVec)
     
@@ -448,6 +459,9 @@ def randomForest(dataFile, modelTarget):
 
 def presenceModels(dataFile):
     samples = pd.read_excel(dataFile)
+    names = ("Avg_HandEntropy_End", "Avg_SentenceLength_End", "Avg_SentenceLength_Mid", "Ratio2_End", "Ratio1_Begin", "Head_Entropy_End")
+    samples = samples[list(names)]
+
 
     samples_split = []
     samples_split.append(samples[samples.PresenceClass == 1])
@@ -468,7 +482,6 @@ def presenceModels(dataFile):
 
     forest = RandomForestClassifier()
     sv = SVC()
-    names = ("Avg_HandEntropy_End", "Avg_SentenceLength_End", "Avg_SentenceLength_Mid", "Ratio2_End", "Ratio1_Begin", "Head_Entropy_End")
     X = np.nan_to_num(balanced_set.as_matrix(names))
 
     y = np.array(balanced_set["PresenceClass"].tolist())
@@ -510,9 +523,11 @@ def presenceModels(dataFile):
     print stdVec[descIndices[::-1]]
     pdDump.to_excel(dumpPath, index = False)
 
-
 def copresenceModels(dataFile):
     samples = pd.read_excel(dataFile)
+    names = ("Duration", "Ratio2_Begin", "Avg_HandEntropy_Mid", "Avg_SentenceLength_Begin", "Head_Entropy_Mid", "Avg_IPUlen_End")
+    samples = samples[list(names)]
+
 
     samples_split = []
     samples_split.append(samples[samples.CopresenceClass == 1])
@@ -533,7 +548,6 @@ def copresenceModels(dataFile):
 
     forest = RandomForestClassifier()
     sv = SVC()
-    names = ("Duration", "Ratio2_Begin", "Avg_HandEntropy_Mid", "Avg_SentenceLength_Begin", "Head_Entropy_Mid", "Avg_IPUlen_End")
     X = np.nan_to_num(balanced_set.as_matrix(names))
 
     y = np.array(balanced_set["CopresenceClass"].tolist())
@@ -575,24 +589,23 @@ def copresenceModels(dataFile):
     print stdVec[descIndices[::-1]]
     pdDump.to_excel(dumpPath, index = False)
 
-
-def main():
-    pathsList = filePaths()
-    splitratios = [0.15, 0.70, 0.15]
-    """
+def computeFeatures(pathsList, splitratios):
+    #Function to call all functions to compute features
     computePOStags(pathsList, splitratios)
     computeSentenceLengths(pathsList, splitratios)
     computeEntropies(pathsList, splitratios)
     removeNaN()
     computeIPUlengths(pathsList, splitratios)
-    """
-    
+
+def main():
+    pathsList = filePaths()
+    splitratios = [0.15, 0.70, 0.15]
+
+
+    #computeFeatures(pathsList, splitratios)    
     #prepareMatrix()
     
     randomForest("/home/sameer/Projects/ACORFORMED/Data/mlMat.xlsx", "presence")
-    #presenceModels("/home/sameer/Projects/ACORFORMED/Data/mlMatP.xlsx")
-    print "\n\n"
-    #randomForest("/home/sameer/Projects/ACORFORMED/Data/mlMat.xlsx", "copresence")
 
 if(__name__ == "__main__"):
     main()
